@@ -1,0 +1,55 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "demo_user10",
+      "displayName": "Fardeen",
+      "email": "fardeen100@gmail.com",
+      "password": "$2a$10$x9SU6g6KfigV7AeGi.gxWu12QUIuMM9gKMaRpXPOwvr3vYAKxoSdG",
+      "avatar": null,
+      "bio": "",
+      "followers": 0,
+      "following": 0,
+      "likes": 0,
+      "isPrivate": false,
+      "createdAt": "2026-05-01T19:18:18.397Z"
+    },
+    {
+      "id": 2,
+      "username": "demo_user8",
+      "displayName": "Test",
+      "email": "8888@gmail.com",
+      "password": "$2a$10$2sSLio6R.F9d8.VLWGeWM.rsTmUjUeZgRp/GUeUSo.JELQ/F7QHYa",
+      "avatar": null,
+      "bio": "",
+      "followers": 0,
+      "following": 0,
+      "likes": 0,
+      "isPrivate": false,
+      "createdAt": "2026-05-01T19:28:30.871Z"
+    },
+    {
+      "id": 3,
+      "username": "demo_userrr",
+      "displayName": "Teststt",
+      "email": "testest@gmail.com",
+      "password": "$2a$10$UNF8XSqF2a6RgYZ4ZA53budY6tj2tB1DCHzaq/QCI8DYM0BPcY3ue",
+      "avatar": null,
+      "bio": "",
+      "followers": 0,
+      "following": 0,
+      "likes": 0,
+      "isPrivate": false,
+      "createdAt": "2026-05-01T19:31:57.321Z"
+    }
+  ],
+  "videos": [],
+  "likes": [],
+  "comments": [],
+  "follows": [],
+  "messages": [],
+  "nextUserId": 4,
+  "nextVideoId": 1,
+  "nextCommentId": 1,
+  "nextMessageId": 1
+}
