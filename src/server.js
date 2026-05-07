@@ -9,6 +9,9 @@ const bcrypt = require('bcryptjs');
 const { MongoClient, ObjectId } = require('mongodb');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const ffmpeg = require('fluent-ffmpeg');
+const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
+ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,6 +59,15 @@ const getFileUrl = (file) => {
   if (useCloudinary) return file.path; // Cloudinary returns full https URL in file.path
   return `/uploads/${file.fieldname === 'video' ? 'videos' : file.fieldname === 'avatar' ? 'avatars' : 'messages'}/${file.filename}`;
 };
+
+// Helper: extract video duration in ms via ffprobe (local files only)
+const getVideoDuration = (filePath) =>
+  new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) return resolve(0);
+      resolve(Math.round((metadata.format.duration || 0) * 1000));
+    });
+  });
 
 const uploadVideo = multer({ storage: makeStorage('videos', 'video'), limits: { fileSize: 100 * 1024 * 1024 } });
 const uploadAvatar = multer({ storage: makeStorage('avatars', 'image'), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -324,8 +336,19 @@ app.get('/api/users/:username/videos', async (req, res) => {
 app.post('/api/videos/upload', authenticate, uploadVideo.single('video'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file' });
-    const { caption, hashtags, songTitle, songArtist, songUrl, songStartMs, videoDurationMs } = req.body;
+    const { caption, hashtags, songTitle, songArtist, songUrl, songStartMs } = req.body;
     const videoUrl = useCloudinary ? req.file.path : `/uploads/videos/${req.file.filename}`;
+
+    // Extract real video duration:
+    //  - Cloudinary: duration (seconds) is returned on the multer file object after upload
+    //  - Local disk:  run ffprobe against the saved file path
+    let videoDurationMs = 0;
+    if (useCloudinary) {
+      videoDurationMs = Math.round((req.file.duration || 0) * 1000);
+    } else {
+      videoDurationMs = await getVideoDuration(req.file.path);
+    }
+
     const video = {
       userId: req.user.id,
       filename: req.file.filename || req.file.public_id,
@@ -336,7 +359,7 @@ app.post('/api/videos/upload', authenticate, uploadVideo.single('video'), async 
       songArtist: songArtist || null,
       songUrl: songUrl || null,
       songStartMs: parseInt(songStartMs) || 0,
-      videoDurationMs: parseInt(videoDurationMs) || 0,
+      videoDurationMs,
       likes: 0, comments: 0, shares: 0, views: 0,
       createdAt: new Date()
     };
