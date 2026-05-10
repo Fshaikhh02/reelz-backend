@@ -517,6 +517,57 @@ app.get('/admin/reset', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ============= INBOX / MESSAGES ALIASES =============
+app.get('/api/inbox', authenticate, async (req, res) => {
+  try {
+    const myId = req.user.id;
+    const messages = await db.collection('messages').find({
+      $or: [{ senderId: myId }, { receiverId: myId }]
+    }).toArray();
+    const latestByOther = new Map();
+    messages.forEach(m => {
+      const otherId = m.senderId === myId ? m.receiverId : m.senderId;
+      const existing = latestByOther.get(otherId);
+      if (!existing || new Date(m.timestamp) > new Date(existing.timestamp))
+        latestByOther.set(otherId, m);
+    });
+    const conversations = [];
+    for (const [otherId, lastMessage] of latestByOther) {
+      try {
+        const otherUser = await db.collection('users').findOne({ _id: new ObjectId(otherId) });
+        if (otherUser) conversations.push({ otherUser: sanitizeUser(otherUser), lastMessage, unreadCount: 0 });
+      } catch (e) {}
+    }
+    conversations.sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp));
+    res.json({ conversations });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/messages', authenticate, async (req, res) => {
+  try {
+    const myId = req.user.id;
+    const messages = await db.collection('messages').find({
+      $or: [{ senderId: myId }, { receiverId: myId }]
+    }).toArray();
+    const latestByOther = new Map();
+    messages.forEach(m => {
+      const otherId = m.senderId === myId ? m.receiverId : m.senderId;
+      const existing = latestByOther.get(otherId);
+      if (!existing || new Date(m.timestamp) > new Date(existing.timestamp))
+        latestByOther.set(otherId, m);
+    });
+    const conversations = [];
+    for (const [otherId, lastMessage] of latestByOther) {
+      try {
+        const otherUser = await db.collection('users').findOne({ _id: new ObjectId(otherId) });
+        if (otherUser) conversations.push({ otherUser: sanitizeUser(otherUser), lastMessage, unreadCount: 0 });
+      } catch (e) {}
+    }
+    conversations.sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp));
+    res.json({ conversations });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 app.listen(PORT, '0.0.0.0', () => {
