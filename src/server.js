@@ -34,7 +34,7 @@ app.use(cors());
 app.use(express.json());
 
 // Local upload dirs (fallback when Cloudinary not configured)
-['uploads/videos', 'uploads/avatars', 'uploads/messages'].forEach(dir => {
+['uploads/videos', 'uploads/avatars', 'uploads/messages', 'uploads/audio'].forEach(dir => {
   const fullPath = path.join(__dirname, '..', dir);
   if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
 });
@@ -57,7 +57,10 @@ const makeStorage = (folder, resourceType = 'auto') => {
 // Helper: get public URL from uploaded file
 const getFileUrl = (file) => {
   if (useCloudinary) return file.path; // Cloudinary returns full https URL in file.path
-  return `/uploads/${file.fieldname === 'video' ? 'videos' : file.fieldname === 'avatar' ? 'avatars' : 'messages'}/${file.filename}`;
+  if (file.fieldname === 'video')  return `/uploads/videos/${file.filename}`;
+  if (file.fieldname === 'avatar') return `/uploads/avatars/${file.filename}`;
+  if (file.fieldname === 'audio')  return `/uploads/audio/${file.filename}`;
+  return `/uploads/messages/${file.filename}`;
 };
 
 // Helper: extract video duration in ms via ffprobe (local files only)
@@ -69,7 +72,7 @@ const getVideoDuration = (filePath) =>
     });
   });
 
-const uploadVideo = multer({ storage: makeStorage('videos', 'video'), limits: { fileSize: 100 * 1024 * 1024 } });
+const uploadVideo = multer({ storage: makeStorage('videos', 'video'), limits: { fileSize: 500 * 1024 * 1024 } });
 const uploadAvatar = multer({ storage: makeStorage('avatars', 'image'), limits: { fileSize: 5 * 1024 * 1024 } });
 const uploadMessageImage = multer({ storage: makeStorage('messages', 'image'), limits: { fileSize: 10 * 1024 * 1024 } });
 
