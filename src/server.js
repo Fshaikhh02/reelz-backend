@@ -539,7 +539,7 @@ app.get('/api/inbox', authenticate, async (req, res) => {
       } catch (e) {}
     }
     conversations.sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp));
-    res.json({ conversations });
+    res.json(conversations); // plain array — easier for Retrofit to parse
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -564,7 +564,7 @@ app.get('/api/messages', authenticate, async (req, res) => {
       } catch (e) {}
     }
     conversations.sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp));
-    res.json({ conversations });
+    res.json(conversations); // plain array — easier for Retrofit to parse
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
