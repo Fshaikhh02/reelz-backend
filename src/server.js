@@ -295,7 +295,7 @@ app.put('/api/notifications/read-all', authenticate, async (req, res) => {
 });
 
 const uploadAudio = multer({
-  storage: makeStorage('audio', 'video'), // Cloudinary uses 'video' resource type for audio
+  storage: makeStorage('audio', 'auto'), // 'auto' lets Cloudinary detect audio vs video
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
@@ -416,8 +416,9 @@ app.get('/api/videos/:id/comments', async (req, res) => {
   try {
     const comments = await db.collection('comments').find({ videoId: req.params.id }).sort({ createdAt: 1 }).toArray();
     const enriched = await Promise.all(comments.map(async c => {
-      const user = await db.collection('users').findOne({ _id: new ObjectId(c.userId) });
-      return { ...c, id: c._id.toString(), user: sanitizeUser(user) };
+      let user = null;
+      try { user = await db.collection('users').findOne({ _id: new ObjectId(c.userId) }); } catch {}
+      return { ...c, id: c._id.toString(), videoId: c.videoId?.toString(), user: sanitizeUser(user) };
     }));
     res.json({ comments: enriched });
   } catch (e) { res.status(500).json({ error: e.message }); }
