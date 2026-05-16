@@ -1,4 +1,17 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+
+// Firebase Admin SDK for FCM V1 push notifications
+let firebaseAdmin = null;
+try {
+  const admin = require('firebase-admin');
+  const serviceAccount = require('./serviceAccountKey.json');
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  firebaseAdmin = admin;
+  console.log('🔔 Firebase Admin initialized');
+} catch (e) {
+  console.log('⚠️  Firebase not initialized:', e.message);
+}
+
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -414,11 +427,19 @@ app.delete('/api/videos/:id', authenticate, async (req, res) => {
 // ============= COMMENT ROUTES =============
 app.get('/api/videos/:id/comments', async (req, res) => {
   try {
-    const comments = await db.collection('comments').find({ videoId: req.params.id }).sort({ createdAt: 1 }).toArray();
+    // Get top-level comments only
+    const comments = await db.collection('comments').find({ videoId: req.params.id, parentId: null }).sort({ createdAt: 1 }).toArray();
     const enriched = await Promise.all(comments.map(async c => {
       let user = null;
       try { user = await db.collection('users').findOne({ _id: new ObjectId(c.userId) }); } catch {}
-      return { ...c, id: c._id.toString(), videoId: c.videoId?.toString(), user: sanitizeUser(user) };
+      // Get replies for this comment
+      const replies = await db.collection('comments').find({ parentId: c._id.toString() }).sort({ createdAt: 1 }).toArray();
+      const enrichedReplies = await Promise.all(replies.map(async r => {
+        let replyUser = null;
+        try { replyUser = await db.collection('users').findOne({ _id: new ObjectId(r.userId) }); } catch {}
+        return { ...r, id: r._id.toString(), user: sanitizeUser(replyUser) };
+      }));
+      return { ...c, id: c._id.toString(), videoId: c.videoId?.toString(), user: sanitizeUser(user), replies: enrichedReplies };
     }));
     res.json({ comments: enriched });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -428,9 +449,11 @@ app.post('/api/videos/:id/comments', authenticate, async (req, res) => {
   try {
     const { text } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: 'Comment text required' });
-    const comment = { videoId: req.params.id, userId: req.user.id, text: text.trim(), likes: 0, createdAt: new Date() };
+    const parentId = req.body.parentId || null;
+    const comment = { videoId: req.params.id, userId: req.user.id, text: text.trim(), likes: 0, parentId, createdAt: new Date() };
     const result = await db.collection('comments').insertOne(comment);
-    await db.collection('videos').updateOne({ _id: new ObjectId(req.params.id) }, { $inc: { comments: 1 } });
+    // Only increment top-level comment count
+    if (!parentId) await db.collection('videos').updateOne({ _id: new ObjectId(req.params.id) }, { $inc: { comments: 1 } });
     const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
     const video = await db.collection('videos').findOne({ _id: new ObjectId(req.params.id) });
     if (video) await createNotification(video.userId, 'comment', req.user.id, sanitizeUser(user), req.params.id, text.trim());
@@ -571,6 +594,37 @@ app.get('/api/messages', authenticate, async (req, res) => {
     res.json(conversations); // plain array — easier for Retrofit to parse
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// ============= FCM PUSH NOTIFICATIONS =============
+// Save device FCM token
+app.post('/api/users/fcm-token', authenticate, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Token required' });
+    await db.collection('users').updateOne(
+      { _id: new ObjectId(req.user.id) },
+      { $set: { fcmToken: token } }
+    );
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Send push notification via FCM V1 API (Firebase Admin SDK)
+const sendPushNotification = async (recipientId, title, body, data = {}) => {
+  try {
+    if (!firebaseAdmin) return;
+    const recipient = await db.collection('users').findOne({ _id: new ObjectId(recipientId) });
+    if (!recipient?.fcmToken) return;
+    const stringData = {};
+    Object.keys(data).forEach(k => { stringData[k] = String(data[k]); });
+    await firebaseAdmin.messaging().send({
+      token: recipient.fcmToken,
+      notification: { title, body },
+      data: stringData,
+      android: { priority: 'high', notification: { sound: 'default' } }
+    });
+  } catch (e) { console.error('FCM V1 error:', e.message); }
+};
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
