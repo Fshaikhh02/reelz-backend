@@ -521,6 +521,19 @@ app.post('/api/messages/:userId', authenticate, uploadMessageImage.single('image
     const message = { senderId: req.user.id, receiverId, text, imageUrl, timestamp: new Date(), sender: sanitizeUser(sender) };
     const result = await db.collection('messages').insertOne(message);
     res.json({ ...message, id: result.insertedId.toString() });
+
+    // Send push notification to receiver
+    try {
+      const senderName = sender?.username || 'Someone';
+      const notifBody = text || '📷 Sent an image';
+      await sendPushNotification(
+        receiverId,
+        senderName,
+        notifBody,
+        { type: 'message', senderId: req.user.id, senderUsername: senderName }
+      );
+    } catch (notifErr) { console.error('Notification error:', notifErr.message); }
+
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
